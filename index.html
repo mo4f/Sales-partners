@@ -45,6 +45,7 @@ input,textarea{font-family:inherit;font-size:16px;color:var(--ink)}
 .tab{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 16px;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
 .tab[aria-current="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700}
 .tab.add{border-style:dashed;color:var(--muted)}
+.tab.add[aria-current="true"]{border-style:solid;background:var(--ink);color:var(--bg)}
 
 .sharednote{margin:-2px 2px 12px;font-size:13px;color:var(--muted)}
 .sharednote.warn{color:var(--bad);background:var(--surface);border:1px solid var(--bad);border-radius:12px;padding:10px 12px;margin:0 0 12px;overflow-wrap:anywhere}
@@ -109,6 +110,26 @@ input,textarea{font-family:inherit;font-size:16px;color:var(--ink)}
 .jc-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px;text-align:center}
 .jc-row small{display:block;color:var(--muted);font-size:12px}
 .jc-paid{display:flex;justify-content:space-between;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:14px;color:var(--muted)}
+.claims .net{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--field);border:2px solid var(--ink);border-radius:14px;padding:14px 16px;font-weight:700}
+.claims .net b{font-size:24px;font-weight:800}
+.claims .net.clear{border-color:var(--good);color:var(--good)}
+.claimline small{display:block;color:var(--muted);font-size:12px;margin-bottom:2px}
+.claimline{margin-top:12px;background:var(--field);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-weight:500}
+.warnc{color:var(--bad)}
+#recvBox:empty{display:none}
+.sum.two{grid-template-columns:1fr 1fr}
+.kinds{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kind{border:1px solid var(--line);background:var(--field);border-radius:14px;padding:18px 12px;text-align:center}
+.kind b{display:block;font-size:20px;margin-bottom:4px}
+.kind span{font-size:13px;color:var(--muted)}
+.kind:hover,.kind:focus-visible{border-color:var(--ink)}
+.kindrow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}
+.buyrow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.buyf>span{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted);margin-bottom:6px}
+.buytotal{margin-top:10px;display:flex;justify-content:space-between;color:var(--muted)}
+.buytotal b{color:var(--ink);font-size:18px}
+.badges{display:flex;gap:6px;flex:none}
+.jc-sub{font-size:13px;color:var(--muted);margin-top:4px}
 .start{text-align:center;padding:30px 10px}
 .start p{color:var(--muted);margin:0 0 16px}
 
@@ -151,11 +172,12 @@ const num = v => {
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 };
-const fmt = n => (Math.round(n * 100) / 100).toLocaleString('en-US', {maximumFractionDigits: 2});
+const fmt = n => { let v = Math.round((+n || 0) * 100) / 100; if (Object.is(v, -0)) v = 0; return v.toLocaleString('en-US', {maximumFractionDigits: 2}); };
 const N = n => `<span class="num">${fmt(n)}</span>`;
 const sgn = n => n > 0 ? 'pos' : n < 0 ? 'neg' : '';
 
-let S = { partners: ['أنا', 'خويي'], pnSet: [false, false], jobs: [], active: null };
+let S = { partners: ['أنا', 'خويي'], pnSet: [false, false], jobs: [], pays: [], active: 'total' };
+let draftFrom = 0;
 let draftWho = 0;
 let delArmed = false, delTimer = null;
 const colors = ['var(--p0)', 'var(--p1)'];
@@ -196,13 +218,13 @@ function loadCfg(){
   try {
     const c = JSON.parse(LS.get('ps-cache') || 'null');
     if (c && c.S) {
-      S.partners = c.S.partners || S.partners; S.pnSet = c.S.pnSet || [false, false]; S.jobs = c.S.jobs || [];
+      S.partners = c.S.partners || S.partners; S.pnSet = c.S.pnSet || [false, false]; S.jobs = c.S.jobs || []; S.pays = c.S.pays || [];
       if (cfg && c.room === cfg.room) base = c.base || {};
     }
   } catch(e){}
 }
 function cacheWrite(){
-  LS.set('ps-cache', JSON.stringify({room: cfg && cfg.room, S: {partners: S.partners, pnSet: S.pnSet, jobs: S.jobs}, base}));
+  LS.set('ps-cache', JSON.stringify({room: cfg && cfg.room, S: {partners: S.partners, pnSet: S.pnSet, jobs: S.jobs, pays: S.pays}, base}));
 }
 function setStatus(msg, warn){
   const sn = $('#sharednote'); if (!sn) return;
@@ -211,6 +233,8 @@ function setStatus(msg, warn){
 
 /* ---------- flat model (field-level merge) ---------- */
 const mkExp = x => ({who: +x.who === 1 ? 1 : 0, desc: String(x.desc || ''), amount: num(x.amount), ts: +x.ts || 0});
+const mkPay = x => ({from: +x.from === 1 ? 1 : 0, desc: String(x.desc || ''), amount: num(x.amount), ts: +x.ts || 0});
+const okRecv = v => (v === '0' || v === '1') ? v : '';
 function toFlat(st){
   const f = {};
   if (st.pnSet[0]) f.p0 = String(st.partners[0]);
@@ -221,8 +245,13 @@ function toFlat(st){
     f[b + 'name'] = String(j.name || '');
     f[b + 'sale'] = String(j.sale == null ? '' : j.sale);
     f[b + 'split'] = j.split === 'capital' ? 'capital' : 'equal';
+    if (okRecv(String(j.recv))) f[b + 'recv'] = String(j.recv);
+    if (j.kind === 'car') f[b + 'kind'] = 'car';
+    if (String(j.buy0 || '') !== '') f[b + 'buy0'] = String(j.buy0);
+    if (String(j.buy1 || '') !== '') f[b + 'buy1'] = String(j.buy1);
     j.expenses.forEach(e => { f[b + 'expenses/' + e.id] = mkExp(e); });
   });
+  (st.pays || []).forEach(x => { f['pays/' + x.id] = mkPay(x); });
   return f;
 }
 function flatFromTree(t){
@@ -237,9 +266,15 @@ function flatFromTree(t){
     if (j.name !== undefined) f[b + 'name'] = String(j.name);
     if (j.sale !== undefined) f[b + 'sale'] = String(j.sale);
     if (j.split !== undefined) f[b + 'split'] = j.split === 'capital' ? 'capital' : 'equal';
+    if (okRecv(String(j.recv))) f[b + 'recv'] = String(j.recv);
+    if (j.kind === 'car') f[b + 'kind'] = 'car';
+    if (j.buy0 !== undefined && String(j.buy0) !== '') f[b + 'buy0'] = String(j.buy0);
+    if (j.buy1 !== undefined && String(j.buy1) !== '') f[b + 'buy1'] = String(j.buy1);
     const ex = j.expenses || {};
     for (const eid in ex) f[b + 'expenses/' + eid] = mkExp(ex[eid] || {});
   }
+  const pays = t.pays || {};
+  for (const pid in pays) f['pays/' + pid] = mkPay(pays[pid] || {});
   return f;
 }
 function applyFlat(f){
@@ -258,6 +293,10 @@ function applyFlat(f){
     j.name = d.name !== undefined ? d.name : '';
     j.sale = d.sale !== undefined ? d.sale : '';
     j.split = d.split || 'equal';
+    j.recv = okRecv(d.recv);
+    j.kind = d.kind === 'car' ? 'car' : 'other';
+    j.buy0 = d.buy0 !== undefined ? d.buy0 : '';
+    j.buy1 = d.buy1 !== undefined ? d.buy1 : '';
     const ex = [];
     for (const k in d) if (k.startsWith('expenses/')) ex.push(Object.assign({id: k.slice(9)}, d[k]));
     ex.sort((x, y) => (x.ts - y.ts) || (x.id < y.id ? -1 : 1));
@@ -266,6 +305,10 @@ function applyFlat(f){
   });
   jobs.sort((x, y) => (x.created - y.created) || (x.id < y.id ? -1 : 1));
   S.jobs = jobs;
+  const pays = [];
+  for (const k in f) if (k.startsWith('pays/')) pays.push(Object.assign({id: k.slice(5)}, f[k]));
+  pays.sort((x, y) => (x.ts - y.ts) || (x.id < y.id ? -1 : 1));
+  S.pays = pays;
 }
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -303,7 +346,7 @@ async function sync(manual){
     if (n) await api('PATCH', diff);
     base = merged; cacheWrite();
     if (changed) {
-      if (S.active !== 'total' && !jobById(S.active)) S.active = S.jobs.length ? S.jobs[0].id : null;
+      if (!['total', 'claims', 'new'].includes(S.active) && !jobById(S.active)) S.active = 'total';
       renderTabs();
       const ae = document.activeElement;
       const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
@@ -325,16 +368,53 @@ async function sync(manual){
 }
 
 /* ---------- calc ---------- */
+const isCar = j => j.kind === 'car';
 function calc(j){
-  const cap = [0, 0];
-  j.expenses.forEach(e => cap[e.who] += num(e.amount));
+  // buy[i] = اللي دفعه الشريك i في قيمة السيارة، exp[i] = اللي دفعه في المصاريف، cap[i] = المجموع (رأس ماله)
+  const buy = isCar(j) ? [num(j.buy0), num(j.buy1)] : [0, 0];
+  const exp = [0, 0];
+  j.expenses.forEach(e => exp[e.who] += num(e.amount));
+  const cap = [buy[0] + exp[0], buy[1] + exp[1]];
+  const buyT = buy[0] + buy[1], expT = exp[0] + exp[1];
   const cost = cap[0] + cap[1];
   const sale = num(j.sale);
   const done = sale > 0;
   const profit = sale - cost;
-  let sh = [profit / 2, profit / 2];
-  if (j.split === 'capital' && cost > 0) sh = [profit * cap[0] / cost, profit * cap[1] / cost];
-  return {cap, cost, sale, done, profit, sh, get: [cap[0] + sh[0], cap[1] + sh[1]]};
+  const sh = [profit / 2, profit / 2]; // كل واحد يرجع له رأس ماله، والربح (أو الخسارة) نص بنص
+  return {buy, exp, buyT, expT, cap, cost, sale, done, profit, sh, get: [cap[0] + sh[0], cap[1] + sh[1]]};
+}
+const EPS = 0.005;
+// المطالبات: اللي استلم فلوس البيع يعطي شريكه نصيبه (رأس ماله + ربحه)
+// قبل البيع (نص بنص): كل واحد عليه نص التكلفة، فاللي دفع أقل يطلبه اللي دفع أكثر نص الفرق.
+// حسب رأس المال: كل واحد يملك قد اللي دفعه، فما فيه مطالبة قبل البيع.
+function preClaim(j, c){ return (c.cap[0] - c.cap[1]) / 2; } // >0: الشريك 1 عليه للشريك 0
+// بعد البيع: اللي استلم فلوس البيع يعطي شريكه حقه (رأس ماله + ربحه). هذا يشمل حساب قبل البيع.
+function claims(){
+  const C = {pre: [0, 0], fin: [0, 0], owe: [0, 0], paid: [0, 0], preJobs: [], finJobs: [], noRecv: []};
+  // pre[i] / fin[i] = اللي يطلبه الشريك i من الثاني
+  S.jobs.forEach(j => {
+    const c = calc(j);
+    if (c.done && okRecv(String(j.recv))) {
+      const r = +j.recv, o = 1 - r, amt = c.get[o];
+      if (amt >= 0) C.fin[o] += amt; else C.fin[r] += -amt;
+      C.finJobs.push({j, c, r, o, amt});
+      return;
+    }
+    if (c.done) C.noRecv.push(j);
+    if (!c.cost) return;
+    const d = preClaim(j, c);
+    if (d > 0) C.pre[0] += d; else if (d < 0) C.pre[1] += -d;
+    C.preJobs.push({j, c, d, noRecv: c.done});
+  });
+  S.pays.forEach(x => { C.paid[x.from] += num(x.amount); });
+  [0,1].forEach(i => C.owe[i] = C.pre[i] + C.fin[i]);
+  // net > 0: الشريك 0 لازم يحوّل للشريك 1 ، net < 0: العكس
+  let net = C.owe[1] - C.owe[0] - C.paid[0] + C.paid[1];
+  if (Math.abs(net) < EPS) net = 0;
+  C.net = net;
+  C.debtor = net > 0 ? 0 : net < 0 ? 1 : -1;
+  C.amount = Math.abs(net);
+  return C;
 }
 const jobById = id => S.jobs.find(j => j.id === id);
 const jobTitle = j => j.name.trim() || 'شغلة بدون اسم';
@@ -355,9 +435,10 @@ function renderPartners(){
 function renderTabs(){
   const t = $('#tabs');
   t.innerHTML =
-    `<button class="tab" data-id="total" aria-current="${S.active === 'total'}">الإجمالي</button>` +
+    `<button class="tab" data-id="total" aria-current="${S.active === 'total'}">الرئيسية</button>` +
+    `<button class="tab" data-id="claims" aria-current="${S.active === 'claims'}">المطالبات</button>` +
     S.jobs.map(j => `<button class="tab" data-id="${j.id}" aria-current="${S.active === j.id}">${esc(jobTitle(j))}</button>`).join('') +
-    `<button class="tab add" id="addJob">+ شغلة جديدة</button>` +
+    `<button class="tab add" id="addJob" aria-current="${S.active === 'new'}">+ شغلة جديدة</button>` +
     `<button class="tab add" id="refresh">تحديث ↻</button>`;
   t.querySelectorAll('[data-id]').forEach(b => b.onclick = () => { S.active = b.dataset.id; delArmed = false; renderTabs(); renderMain(); });
   $('#addJob').onclick = addJob;
@@ -365,43 +446,66 @@ function renderTabs(){
   const cur = t.querySelector('[aria-current="true"]');
   if (cur && cur.scrollIntoView) cur.scrollIntoView({inline: 'center', block: 'nearest'});
 }
-function addJob(){
-  const j = {id: uid(), created: Date.now(), name: '', sale: '', split: 'equal', expenses: []};
+function addJob(){ S.active = 'new'; renderTabs(); renderMain(); window.scrollTo(0, 0); }
+function createJob(kind){
+  const j = {id: uid(), created: Date.now(), kind, name: '', buy0: '', buy1: '', sale: '', split: 'equal', recv: '', expenses: []};
   S.jobs.push(j); S.active = j.id; save(); renderTabs(); renderMain();
   setTimeout(() => { const el = $('#jobName'); if (el) el.focus(); }, 30);
+}
+function renderNew(){
+  $('#main').innerHTML = `
+    <div class="panel">
+      <h2>وش نوع الشغلة الجديدة؟</h2>
+      <div class="kinds">
+        <button class="kind" data-k="car"><b>سيارة</b><span>قيمة الشراء وكم دفع كل واحد، والمصاريف</span></button>
+        <button class="kind" data-k="other"><b>أخرى</b><span>اسم ومصاريف بس</span></button>
+      </div>
+    </div>`;
+  document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => createJob(b.dataset.k));
 }
 
 /* ---------- main ---------- */
 function renderMain(){
-  if (S.active === 'total') return renderTotal();
+  if (S.active === 'claims') return renderClaims();
+  if (S.active === 'new') return renderNew();
   const j = jobById(S.active);
-  if (!j) {
-    if (S.jobs.length) { S.active = S.jobs[0].id; return renderMain(); }
-    $('#main').innerHTML = `<div class="panel start"><p>سجّل أول شغلة، وكل واحد منكم يضيف اللي دفعه عليها.</p><button class="primary" id="first">+ شغلة جديدة</button></div>`;
-    $('#first').onclick = addJob;
-    return;
-  }
-  renderJob(j);
+  if (j) return renderJob(j);
+  if (S.active !== 'total') { S.active = 'total'; renderTabs(); }
+  renderTotal();
 }
 
 function renderJob(j){
   $('#main').innerHTML = `
   <div class="panel">
     <div class="jobhead">
-      <input class="jobname" id="jobName" value="${esc(j.name)}" placeholder="اسم الشغلة" aria-label="اسم الشغلة">
+      <input class="jobname" id="jobName" value="${esc(j.name)}" placeholder="${isCar(j) ? 'اسم السيارة (مثال: برونكو 2022)' : 'اسم الشغلة'}" aria-label="الاسم">
       <button class="ghost" id="delJob">حذف</button>
+    </div>
+    <div class="kindrow">
+      <span class="badge ${isCar(j) ? 'ok' : ''}">${isCar(j) ? 'سيارة' : 'أخرى'}</span>
+      ${isCar(j) ? '' : '<button class="ghost" id="toCar">تحويل لسيارة</button>'}
     </div>
   </div>
 
+  ${isCar(j) ? `
   <div class="panel">
-    <h2>المصاريف</h2>
+    <h2>قيمة السيارة (الشراء)</h2>
+    <div class="buyrow">${[0,1].map(i => `
+      <label class="buyf"><span><span class="dot" style="background:${colors[i]}"></span>${esc(pn(i))} دفع</span>
+        <input class="field" id="buy${i}" inputmode="decimal" placeholder="0" value="${esc(j['buy' + i] || '')}"></label>`).join('')}
+    </div>
+    <div class="buytotal">قيمة السيارة: <b id="buyTotal" class="num"></b></div>
+  </div>` : ''}
+
+  <div class="panel">
+    <h2>${isCar(j) ? 'المصاريف (غير قيمة السيارة)' : 'المصاريف'}</h2>
     <div id="expList"></div>
     <div class="form">
       <div class="seg" id="who">
         ${[0,1].map(i => `<button data-w="${i}" style="--c:${colors[i]}" aria-pressed="${draftWho === i}">${esc(pn(i))} دفع</button>`).join('')}
       </div>
       <div class="row2">
-        <input class="field" id="eDesc" placeholder="وش دفع؟ (مثال: خشب)" aria-label="وصف المصروف">
+        <input class="field" id="eDesc" placeholder="${isCar(j) ? 'وش دفع؟ (مثال: فحص)' : 'وش دفع؟ (مثال: خشب)'}" aria-label="وصف المصروف">
         <input class="field" id="eAmt" inputmode="decimal" placeholder="المبلغ" aria-label="المبلغ">
       </div>
       <button class="primary" id="addExp">إضافة المصروف</button>
@@ -410,34 +514,30 @@ function renderJob(j){
 
   <div class="panel stack">
     <div>
-      <label class="lbl" for="sale">سعر بيع الشغلة</label>
+      <label class="lbl" for="sale">${isCar(j) ? 'سعر بيع السيارة' : 'سعر بيع الشغلة'}</label>
       <input class="field" id="sale" inputmode="decimal" placeholder="اكتبه لما تنباع" value="${esc(j.sale)}">
     </div>
-    <div>
-      <span class="lbl">تقسيم الربح</span>
-      <div class="seg" id="split">
-        <button data-s="equal" aria-pressed="${j.split !== 'capital'}">نص بنص</button>
-        <button data-s="capital" aria-pressed="${j.split === 'capital'}">حسب رأس المال</button>
-      </div>
-    </div>
+    <div id="recvBox"></div>
   </div>
 
   <div class="panel" id="results"></div>`;
 
   $('#jobName').oninput = e => { j.name = e.target.value; save(); renderTabs(); };
-  $('#sale').oninput = e => { j.sale = e.target.value; save(); renderResults(j); };
+  if (isCar(j)) {
+    const upd = () => { $('#buyTotal').textContent = fmt(num(j.buy0) + num(j.buy1)); };
+    [0,1].forEach(i => $('#buy' + i).oninput = e => { j['buy' + i] = e.target.value.trim(); upd(); save(); renderResults(j); });
+    upd();
+  } else {
+    $('#toCar').onclick = () => convertToCar(j);
+  }
+  $('#sale').oninput = e => { j.sale = e.target.value; save(); renderRecv(j); renderResults(j); };
   $('#who').querySelectorAll('button').forEach(b => b.onclick = () => {
     draftWho = +b.dataset.w;
     $('#who').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', +x.dataset.w === draftWho));
   });
-  $('#split').querySelectorAll('button').forEach(b => b.onclick = () => {
-    j.split = b.dataset.s; save();
-    $('#split').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.s === j.split));
-    renderResults(j);
-  });
   const add = () => {
     const amt = num($('#eAmt').value);
-    if (!amt) { toast('اكتب المبلغ'); $('#eAmt').focus(); return; }
+    if (!(amt > 0)) { toast('اكتب مبلغ أكبر من صفر'); $('#eAmt').focus(); return; }
     j.expenses.push({id: uid(), who: draftWho, desc: $('#eDesc').value.trim(), amount: amt, ts: Date.now()});
     $('#eDesc').value = ''; $('#eAmt').value = '';
     save(); renderExpenses(j); renderResults(j);
@@ -455,10 +555,36 @@ function renderJob(j){
     }
     delArmed = false;
     S.jobs = S.jobs.filter(x => x.id !== j.id);
-    S.active = S.jobs.length ? S.jobs[0].id : null;
+    S.active = 'total';
     save(); renderTabs(); renderMain();
   };
-  renderExpenses(j); renderResults(j);
+  renderExpenses(j); renderRecv(j); renderResults(j);
+}
+
+// تحويل شغلة قديمة لسيارة: ينقل مصروف "قيمة السيارة" لخانة الشراء
+function convertToCar(j){
+  const isPrice = e => /قيم[ةه]\s*(ال)?سي?ار[ةه]/.test(e.desc || '');
+  const moved = [num(j.buy0), num(j.buy1)]; let n = 0;
+  j.expenses = j.expenses.filter(e => { if (isPrice(e)) { moved[e.who] += num(e.amount); n++; return false; } return true; });
+  j.kind = 'car';
+  j.buy0 = moved[0] ? String(Math.round(moved[0] * 100) / 100) : '';
+  j.buy1 = moved[1] ? String(Math.round(moved[1] * 100) / 100) : '';
+  save(); renderMain();
+  toast(n ? 'تحولت لسيارة، وانتقلت "قيمة السيارة" لخانة الشراء' : 'تحولت لسيارة، اكتب قيمة الشراء');
+}
+function renderRecv(j){
+  const el = $('#recvBox'); if (!el) return;
+  if (!(num(j.sale) > 0)) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <span class="lbl">مين استلم فلوس البيع؟</span>
+    <div class="seg" id="recv">
+      ${[0,1].map(i => `<button data-r="${i}" style="--c:${colors[i]}" aria-pressed="${j.recv === String(i)}">${esc(pn(i))}</button>`).join('')}
+    </div>
+    ${okRecv(String(j.recv)) ? '' : '<p class="note warnc">حدده عشان تنحسب المطالبات.</p>'}`;
+  el.querySelectorAll('[data-r]').forEach(b => b.onclick = () => {
+    j.recv = j.recv === b.dataset.r ? '' : b.dataset.r;
+    save(); renderRecv(j); renderResults(j);
+  });
 }
 
 function renderExpenses(j){
@@ -477,28 +603,58 @@ function renderExpenses(j){
   });
 }
 
-function cardsHTML(cap, sh, get, done){
+function cardsHTML(cap, sh, get, done, c){
   return `<div class="cards">${[0,1].map(i => `
     <div class="card" style="--c:${colors[i]}">
       <h3>${esc(pn(i))}</h3>
+      ${c && c.buyT ? `<div class="r"><span>في السيارة</span><span>${N(c.buy[i])}</span></div>
+      <div class="r"><span>في المصاريف</span><span>${N(c.exp[i])}</span></div>` : ''}
       <div class="r"><span>رأس ماله</span><span>${N(cap[i])}</span></div>
       ${done ? `<div class="r"><span>ربحه</span><span class="${sgn(sh[i])}">${N(sh[i])}</span></div>
       <div class="get"><span>يستلم</span><b>${N(get[i])}</b></div>` : `<div class="get"><span>دفع</span><b>${N(cap[i])}</b></div>`}
     </div>`).join('')}</div>`;
 }
 
+function preLine(j, c){
+  if (!c.cost) return '';
+  const d = preClaim(j, c);
+  if (Math.abs(d) < EPS) return 'دافعين بالتساوي، ما أحد يطلب أحد';
+  return d > 0 ? `${pn(0)} يطلب ${pn(1)} ${fmt(d)} (نص الفرق في المدفوع)`
+               : `${pn(1)} يطلب ${pn(0)} ${fmt(-d)} (نص الفرق في المدفوع)`;
+}
+function jobClaimLine(j, c){
+  if (!okRecv(String(j.recv))) return '';
+  const r = +j.recv, o = 1 - r, amt = c.get[o];
+  if (Math.abs(amt) < EPS) return `${pn(r)} استلم الفلوس، وما عليه شي`;
+  return amt > 0 ? `${pn(r)} استلم الفلوس، فيعطي ${pn(o)} ${fmt(amt)}`
+                 : `${pn(r)} استلم الفلوس، و${pn(o)} يعطيه ${fmt(-amt)} (خسارة)`;
+}
+function jobClaimHTML(j, c){
+  if (c.done) {
+    const t = jobClaimLine(j, c);
+    return t ? `<div class="claimline"><small>التسوية النهائية</small>${esc(t)}</div>`
+             : `<div class="claimline"><small>لحد الحين (قبل البيع)</small>${esc(preLine(j, c))}</div><p class="note warnc">حدد مين استلم فلوس البيع عشان تطلع التسوية النهائية.</p>`;
+  }
+  return `<div class="claimline"><small>المطالبة لحد الحين (قبل البيع)</small>${esc(preLine(j, c))}</div>
+    <p class="note">اكتب سعر البيع لما تنباع عشان يطلع الربح والتسوية النهائية.</p>`;
+}
 function renderResults(j){
   const c = calc(j), el = $('#results');
-  if (!c.cost) { el.innerHTML = `<h2>النتيجة</h2><div class="empty">أضف المصاريف وبتطلع الحسبة هنا.</div>`; return; }
+  if (!c.cost) { el.innerHTML = `<h2>النتيجة</h2><div class="empty">${isCar(j) ? 'اكتب قيمة السيارة وكم دفع كل واحد، وبتطلع الحسبة هنا.' : 'أضف المصاريف وبتطلع الحسبة هنا.'}</div>`; return; }
   el.innerHTML = `
     <h2>النتيجة</h2>
-    <div class="sum">
-      <div><small>التكلفة</small><b>${N(c.cost)}</b></div>
+    ${isCar(j) ? `<div class="sum">
+      <div><small>قيمة السيارة</small><b>${N(c.buyT)}</b></div>
+      <div><small>المصاريف</small><b>${N(c.expT)}</b></div>
+      <div><small>التكلفة الكاملة</small><b>${N(c.cost)}</b></div>
+    </div>` : ''}
+    <div class="sum ${isCar(j) ? 'two' : ''}">
+      ${isCar(j) ? '' : `<div><small>التكلفة</small><b>${N(c.cost)}</b></div>`}
       <div><small>سعر البيع</small><b>${c.done ? N(c.sale) : '—'}</b></div>
       <div><small>${c.profit < 0 && c.done ? 'الخسارة' : 'الربح'}</small><b class="${c.done ? sgn(c.profit) : ''}">${c.done ? N(c.profit) : '—'}</b></div>
     </div>
-    ${cardsHTML(c.cap, c.sh, c.get, c.done)}
-    ${c.done ? '' : '<p class="note">اكتب سعر البيع عشان يطلع الربح ومبلغ كل واحد.</p>'}
+    ${cardsHTML(c.cap, c.sh, c.get, c.done, c)}
+    ${jobClaimHTML(j, c)}
     <button class="copy" id="copyJob">نسخ الملخص</button>`;
   $('#copyJob').onclick = () => copy(jobText(j));
 }
@@ -525,7 +681,7 @@ function renderTotal(){
     $('#first').onclick = addJob; return;
   }
   const T = totals();
-  $('#main').innerHTML = `
+  $('#main').innerHTML = claimsSummaryHTML(claims(), true) + `
     <div class="panel">
       <h2>كل الشغلات (${S.jobs.length})</h2>
       <div class="sum">
@@ -548,7 +704,8 @@ function renderTotal(){
     <h2 class="sec">الشغلات</h2>
     ${S.jobs.map(j => { const c = calc(j); return `
       <button class="jobcard" data-open="${j.id}">
-        <div class="jc-head"><b>${esc(jobTitle(j))}</b><span class="badge ${c.done ? 'ok' : ''}">${c.done ? 'مباعة' : 'ما انباعت'}</span></div>
+        <div class="jc-head"><b>${esc(jobTitle(j))}</b><span class="badges">${isCar(j) ? '<span class="badge">سيارة</span>' : ''}<span class="badge ${c.done ? 'ok' : ''}">${c.done ? 'مباعة' : 'ما انباعت'}</span></span></div>
+        ${isCar(j) ? `<div class="jc-sub">السيارة ${N(c.buyT)} + المصاريف ${N(c.expT)}</div>` : ''}
         <div class="jc-row">
           <div><small>التكلفة</small><b>${N(c.cost)}</b></div>
           <div><small>البيع</small><b>${c.done ? N(c.sale) : '—'}</b></div>
@@ -560,17 +717,143 @@ function renderTotal(){
       </button>`; }).join('')}`;
   document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { S.active = b.dataset.open; renderTabs(); renderMain(); window.scrollTo(0, 0); });
   $('#copyAll').onclick = () => copy(totalText(T));
+  const go = $('#goClaims'); if (go) go.onclick = () => { S.active = 'claims'; renderTabs(); renderMain(); window.scrollTo(0, 0); };
+}
+
+/* ---------- claims page ---------- */
+function netText(C){
+  if (C.debtor < 0) return 'خالصين، ما أحد يطلب أحد';
+  return `${pn(C.debtor)} لازم يحوّل إلى ${pn(1 - C.debtor)}`;
+}
+function claimsSummaryHTML(C, withLink){
+  return `
+    <div class="panel claims">
+      <h2>المطالبات لحد الحين</h2>
+      <div class="net ${C.debtor < 0 ? 'clear' : ''}">
+        <div>${esc(netText(C))}</div>
+        ${C.debtor < 0 ? '' : `<b class="num">${fmt(C.amount)}</b>`}
+      </div>
+      <div class="cards" style="margin-top:10px">${[0,1].map(i => `
+        <div class="card" style="--c:${colors[i]}">
+          <h3>${esc(pn(i))}</h3>
+          <div class="r"><span>يطلب قبل البيع</span><span>${N(C.pre[i])}</span></div>
+          <div class="r"><span>يطلب بعد البيع</span><span>${N(C.fin[i])}</span></div>
+          <div class="r"><span>حوّل للثاني</span><span>${N(C.paid[i])}</span></div>
+        </div>`).join('')}</div>
+      ${C.noRecv.length ? `<p class="note warnc">${C.noRecv.length} شغلة مباعة ما تحدد مين استلم فلوسها، فانحسبت كأنها ما انباعت.</p>` : ''}
+      ${withLink ? '<button class="copy" id="goClaims">تفاصيل المطالبات والتحويلات</button>' : ''}
+    </div>`;
+}
+function renderClaims(){
+  const C = claims();
+  const openRow = (x, right) => `
+        <button class="jl" data-open="${x.j.id}">
+          <div class="n">${esc(jobTitle(x.j))}<div class="s">${right.sub}</div></div>
+          <div class="s" style="text-align:end">${right.side}</div>
+        </button>`;
+  const who = (i, v) => `${esc(pn(i))} يطلب<br><b class="num" style="color:var(--ink)">${fmt(v)}</b>`;
+  $('#main').innerHTML = claimsSummaryHTML(C, false) + `
+    <div class="panel">
+      <h2>قبل البيع (لحد الحين)</h2>
+      <p class="note" style="margin:0 0 6px">اللي دفع أكثر يطلب الثاني نص الفرق، عشان تصيرون دافعين بالتساوي. مو لازم تحوّلونه الحين: إذا ما حولتوه ينخصم وقت البيع، والنتيجة نفسها.</p>
+      ${C.preJobs.length ? C.preJobs.map(x => openRow(x, {
+          sub: `تكلفة ${fmt(x.c.cost)} — ${esc(pn(0))} ${fmt(x.c.cap[0])}، ${esc(pn(1))} ${fmt(x.c.cap[1])}` + (x.noRecv ? '<br><span class="warnc">مباعة، بس ما تحدد مين استلم الفلوس</span>' : '') + '',
+          side: Math.abs(x.d) < EPS ? 'ما فيه مطالبة' : x.d > 0 ? who(0, x.d) : who(1, -x.d)
+        })).join('') : '<div class="empty">ما فيه شغلات ما انباعت.</div>'}
+    </div>
+
+    <div class="panel">
+      <h2>التسوية النهائية (بعد البيع)</h2>
+      <p class="note" style="margin:0 0 6px">كل واحد يرجع له رأس ماله، والربح نص بنص. فاللي استلم فلوس البيع يعطي شريكه رأس ماله ونص الربح.</p>
+      ${C.finJobs.length ? C.finJobs.map(x => openRow(x, {
+          sub: `بيع ${fmt(x.c.sale)} — استلمها ${esc(pn(x.r))}`,
+          side: Math.abs(x.amt) < EPS ? 'ما فيه مطالبة' : x.amt > 0 ? who(x.o, x.amt) : who(x.r, -x.amt)
+        })).join('') : '<div class="empty">ما فيه شغلات مباعة محدد مين استلم فلوسها.</div>'}
+    </div>
+
+    <div class="panel">
+      <h2>التحويلات بينكم</h2>
+      <div id="payList"></div>
+      <div class="form">
+        <div class="seg" id="payFrom">
+          ${[0,1].map(i => `<button data-f="${i}" style="--c:${colors[i]}" aria-pressed="${draftFrom === i}">${esc(pn(i))} حوّل</button>`).join('')}
+        </div>
+        <div class="row2">
+          <input class="field" id="pDesc" placeholder="ملاحظة (اختياري)" aria-label="ملاحظة التحويل">
+          <input class="field" id="pAmt" inputmode="decimal" placeholder="المبلغ" aria-label="مبلغ التحويل">
+        </div>
+        <button class="primary" id="addPay">تسجيل التحويل</button>
+        ${C.debtor >= 0 ? `<button class="copy" id="settle" style="margin-top:0">سجّل إن ${esc(pn(C.debtor))} حوّل ${fmt(C.amount)} (تسوية كاملة)</button>` : ''}
+      </div>
+    </div>
+    <button class="copy" id="copyClaims" style="margin-top:0;margin-bottom:12px">نسخ ملخص المطالبات</button>`;
+
+  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { S.active = b.dataset.open; renderTabs(); renderMain(); window.scrollTo(0, 0); });
+  $('#payFrom').querySelectorAll('button').forEach(b => b.onclick = () => {
+    draftFrom = +b.dataset.f;
+    $('#payFrom').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', +x.dataset.f === draftFrom));
+  });
+  const addPay = (from, amt, desc) => {
+    S.pays.push({id: uid(), from, amount: Math.round(amt * 100) / 100, desc, ts: Date.now()});
+    save(); renderClaims(); toast('انسجّل التحويل');
+  };
+  $('#addPay').onclick = () => {
+    const amt = num($('#pAmt').value);
+    if (!(amt > 0)) { toast('اكتب مبلغ أكبر من صفر'); $('#pAmt').focus(); return; }
+    addPay(draftFrom, amt, $('#pDesc').value.trim());
+  };
+  ['pDesc', 'pAmt'].forEach(id => $('#' + id).addEventListener('keydown', e => { if (e.key === 'Enter') $('#addPay').click(); }));
+  const st = $('#settle');
+  if (st) st.onclick = () => addPay(C.debtor, C.amount, 'تسوية كاملة');
+  $('#copyClaims').onclick = () => copy(claimsText(C));
+  renderPays();
+}
+function renderPays(){
+  const el = $('#payList');
+  if (!S.pays.length) { el.innerHTML = '<div class="empty">ما فيه تحويلات مسجلة.</div>'; return; }
+  el.innerHTML = S.pays.map(x => `
+    <div class="exp">
+      <span class="dot" style="background:${colors[x.from]}"></span>
+      <div class="t"><div class="d">${esc(pn(x.from))} ← حوّل إلى ${esc(pn(1 - x.from))}</div><div class="w">${esc(x.desc || new Date(x.ts).toLocaleDateString('en-GB'))}</div></div>
+      <div class="a">${N(num(x.amount))}</div>
+      <button class="x" data-delp="${x.id}" aria-label="حذف التحويل">×</button>
+    </div>`).join('');
+  el.querySelectorAll('[data-delp]').forEach(b => b.onclick = () => {
+    S.pays = S.pays.filter(x => x.id !== b.dataset.delp);
+    save(); renderClaims();
+  });
+}
+function claimsText(C){
+  let t = `المطالبات لحد الحين\n${netText(C)}${C.debtor < 0 ? '' : ': ' + fmt(C.amount)}\n\n`;
+  [0,1].forEach(i => t += `${pn(i)}: يطلب قبل البيع ${fmt(C.pre[i])}، وبعد البيع ${fmt(C.fin[i])}، وحوّل ${fmt(C.paid[i])}\n`);
+  if (C.preJobs.length) {
+    t += '\nقبل البيع:\n';
+    C.preJobs.forEach(x => t += `- ${jobTitle(x.j)}: ${preLine(x.j, x.c)}\n`);
+  }
+  if (C.finJobs.length) {
+    t += '\nالتسوية النهائية:\n';
+    C.finJobs.forEach(x => t += `- ${jobTitle(x.j)}: ${jobClaimLine(x.j, x.c)}\n`);
+  }
+  if (S.pays.length) {
+    t += '\nالتحويلات:\n';
+    S.pays.forEach(x => t += `- ${pn(x.from)} حوّل إلى ${pn(1 - x.from)} ${fmt(num(x.amount))}${x.desc ? ' (' + x.desc + ')' : ''}\n`);
+  }
+  if (C.noRecv.length) t += `\nتنبيه: ${C.noRecv.length} شغلة مباعة ما تحدد مين استلم فلوسها.`;
+  return t.trim();
 }
 
 /* ---------- share text ---------- */
 function jobText(j){
   const c = calc(j);
   let t = `${jobTitle(j)}\n`;
+  if (isCar(j)) t += `قيمة السيارة: ${fmt(c.buyT)} (${pn(0)} ${fmt(c.buy[0])}، ${pn(1)} ${fmt(c.buy[1])})\n${j.expenses.length ? 'المصاريف:\n' : ''}`;
   j.expenses.forEach(e => t += `- ${e.desc || 'بدون وصف'} (${pn(e.who)}): ${fmt(num(e.amount))}\n`);
-  t += `\nالتكلفة: ${fmt(c.cost)}\n`;
-  if (!c.done) return t + `${pn(0)} دفع ${fmt(c.cap[0])}\n${pn(1)} دفع ${fmt(c.cap[1])}`;
+  t += isCar(j) ? `\nالمصاريف: ${fmt(c.expT)}\nالتكلفة الكاملة: ${fmt(c.cost)}\n` : `\nالتكلفة: ${fmt(c.cost)}\n`;
+  if (!c.done) return t + `${pn(0)} دفع ${fmt(c.cap[0])}\n${pn(1)} دفع ${fmt(c.cap[1])}\n\nلحد الحين: ${preLine(j, c)}`;
   t += `سعر البيع: ${fmt(c.sale)}\nالربح: ${fmt(c.profit)}\n\n`;
   [0,1].forEach(i => t += `${pn(i)}: رأس المال ${fmt(c.cap[i])} + ربح ${fmt(c.sh[i])} = ${fmt(c.get[i])}\n`);
+  const cl = jobClaimLine(j, c);
+  t += `\n${cl || 'لحد الحين: ' + preLine(j, c)}`;
   return t.trim();
 }
 function totalText(T){
@@ -614,14 +897,20 @@ function importData(text){
     (rj.expenses || []).forEach(e => { if (!l.expenses.some(x => x.id === e.id)) { l.expenses.push(e); merged++; } });
     if (!l.name && rj.name) l.name = rj.name;
     if (!num(l.sale) && num(rj.sale)) l.sale = rj.sale;
+    if (!okRecv(String(l.recv)) && okRecv(String(rj.recv))) l.recv = String(rj.recv);
+    if (rj.kind === 'car' && l.kind !== 'car') { l.kind = 'car'; }
+    if (!num(l.buy0) && num(rj.buy0)) l.buy0 = rj.buy0;
+    if (!num(l.buy1) && num(rj.buy1)) l.buy1 = rj.buy1;
   });
+  let pAdded = 0;
+  (d.pays || []).forEach(x => { if (x && x.id && !S.pays.some(y => y.id === x.id)) { S.pays.push(Object.assign({id: x.id}, mkPay(x))); pAdded++; } });
+  S.pays.sort((x, y) => (x.ts - y.ts) || (x.id < y.id ? -1 : 1));
   S.jobs.sort((x, y) => (x.created || 0) - (y.created || 0));
-  if (!S.active && S.jobs.length) S.active = S.jobs[0].id;
   save(); renderPartners(); renderTabs(); renderMain();
-  toast(`تم الدمج: ${added} شغلة جديدة، ${merged} مصروف جديد`);
+  toast(`تم الدمج: ${added} شغلة، ${merged} مصروف، ${pAdded} تحويل`);
   return true;
 }
-$('#exportBtn').onclick = () => copy(enc({partners: S.partners, jobs: S.jobs}), 'اننسخت البيانات، ارسلها لخويك');
+$('#exportBtn').onclick = () => copy(enc({partners: S.partners, jobs: S.jobs, pays: S.pays}), 'اننسخت البيانات، ارسلها لخويك');
 $('#importBtn').onclick = () => { const b = $('#importBox'); if (b.value.trim() && importData(b.value)) b.value = ''; };
 
 /* ---------- settings ---------- */
@@ -655,7 +944,7 @@ function renderSettings(){
 
 /* ---------- init ---------- */
 loadCfg();
-if (!S.active && S.jobs.length) S.active = S.jobs[0].id;
+S.active = 'total';
 renderSettings(); renderPartners(); renderTabs(); renderMain();
 if (cfg) { setStatus('جاري الاتصال…'); sync(false); }
 else { setStatus('غير مربوط بقاعدة بيانات: بياناتك محفوظة في هذا الجهاز بس. افتح "الإعدادات والمشاركة" تحت للربط.', true); $('#manual').open = true; }
