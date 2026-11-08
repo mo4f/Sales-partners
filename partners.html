@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>حسبة الشراكة</title>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme: light;
+  --bg:#eef1f4; --surface:#ffffff; --ink:#17202a; --muted:#5f6b7a; --line:#d9dfe6;
+  --p0:#2457d6; --p1:#d9822b;
+  --good:#17874f; --bad:#c23b3b;
+  --field:#f6f8fa;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme: dark;
+    --bg:#12161c; --surface:#1b212a; --ink:#e8ecf1; --muted:#98a3b1; --line:#2b3440;
+    --p0:#6c95ff; --p1:#f0a252;
+    --good:#4cc98a; --bad:#ff7b7b;
+    --field:#141a21;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Tajawal",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:16px; line-height:1.5; padding-bottom:60px;
+}
+.wrap{max-width:560px;margin:0 auto;padding:14px 14px 0}
+button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer}
+input,textarea{font-family:inherit;font-size:16px;color:var(--ink)}
+.num{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;display:inline-block}
+
+.partners{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.pname{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 12px}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.pname input{border:0;background:transparent;width:100%;font-weight:700;outline:none;padding:4px 0}
+.pname:focus-within{border-color:var(--ink)}
+
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 16px;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+.tab[aria-current="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700}
+.tab.add{border-style:dashed;color:var(--muted)}
+
+.sharednote{margin:-2px 2px 12px;font-size:13px;color:var(--muted)}
+.sharednote.warn{color:var(--bad);background:var(--surface);border:1px solid var(--bad);border-radius:12px;padding:10px 12px;margin:0 0 12px;overflow-wrap:anywhere}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
+.panel h2{font-size:15px;margin:0 0 10px;font-weight:700;color:var(--muted)}
+.jobhead{display:flex;gap:8px;align-items:center}
+.jobname{flex:1;min-width:0;border:0;border-bottom:2px solid var(--line);background:transparent;font-size:22px;font-weight:800;padding:4px 0;outline:none}
+.jobname:focus{border-color:var(--ink)}
+.ghost{border:1px solid var(--line);background:transparent;border-radius:10px;padding:6px 12px;color:var(--muted);font-size:14px}
+.ghost.danger{color:var(--bad);border-color:var(--bad)}
+
+.exp{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.exp:last-child{border-bottom:0}
+.exp .t{flex:1;min-width:0}
+.exp .d{font-weight:500;overflow-wrap:anywhere}
+.exp .w{font-size:13px;color:var(--muted)}
+.exp .a{font-weight:700}
+.x{border:0;background:transparent;color:var(--muted);font-size:20px;line-height:1;padding:6px 8px;border-radius:8px}
+.x:hover{color:var(--bad)}
+.empty{color:var(--muted);padding:6px 0 2px;font-size:15px}
+
+.form{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);display:grid;gap:8px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--field);padding:4px;border-radius:12px;border:1px solid var(--line)}
+.seg button{border:0;background:transparent;border-radius:9px;padding:8px 6px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--surface);font-weight:700;box-shadow:0 0 0 2px var(--c, var(--ink)) inset}
+.row2{display:grid;grid-template-columns:1.4fr 1fr;gap:8px}
+.field{width:100%;border:1px solid var(--line);background:var(--field);border-radius:12px;padding:11px 12px;outline:none}
+.field:focus{border-color:var(--ink)}
+.primary{border:0;background:var(--ink);color:var(--bg);border-radius:12px;padding:12px;font-weight:700}
+.primary:active{opacity:.85}
+.lbl{display:block;font-size:14px;color:var(--muted);margin-bottom:6px}
+.stack{display:grid;gap:14px}
+
+.sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.sum div{background:var(--field);border:1px solid var(--line);border-radius:12px;padding:10px 8px;text-align:center}
+.sum small{display:block;color:var(--muted);font-size:13px}
+.sum b{font-size:18px}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{border:1px solid var(--line);border-top:4px solid var(--c);border-radius:12px;padding:12px;background:var(--surface)}
+.card h3{margin:0 0 8px;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .r{display:flex;justify-content:space-between;gap:6px;font-size:14px;color:var(--muted);padding:2px 0}
+.card .r span:last-child{color:var(--ink)}
+.card .get{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:baseline}
+.card .get b{font-size:20px;font-weight:800}
+.card .get span{font-size:14px;color:var(--muted)}
+.note{color:var(--muted);font-size:14px;margin:10px 0 0}
+.copy{margin-top:12px;width:100%;border:1px solid var(--line);background:transparent;border-radius:12px;padding:11px;font-weight:700}
+
+.jl{display:flex;align-items:center;gap:10px;width:100%;text-align:start;border:0;background:transparent;padding:11px 0;border-bottom:1px solid var(--line)}
+.jl:last-child{border-bottom:0}
+.jl .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jl .s{font-size:13px;color:var(--muted)}
+
+.start{text-align:center;padding:30px 10px}
+.start p{color:var(--muted);margin:0 0 16px}
+
+.manual summary{cursor:pointer;font-weight:700}
+.manual .note{margin:10px 0 0}
+.field[dir=ltr]{text-align:left}
+
+.toast{position:fixed;inset-inline:0;bottom:22px;margin:auto;width:max-content;max-width:88%;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;transform:translateY(10px);transition:.2s;pointer-events:none}
+.toast.show{opacity:1;transform:none}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="partners" id="partners"></div>
+  <div class="tabs" id="tabs"></div>
+  <p class="sharednote" id="sharednote"></p>
+  <div id="main"></div>
+  <details class="panel manual" id="manual">
+    <summary>الإعدادات والمشاركة</summary>
+    <div id="cfgBox"></div>
+    <hr style="border:0;border-top:1px solid var(--line);margin:16px 0 4px">
+    <p class="note">نسخة احتياطية يدوية: انسخ بياناتك أو الصق بيانات وصلتك وادمجها. المصاريف الجديدة تنضاف، والمحذوفة ما تنحذف.</p>
+    <button class="copy" id="exportBtn">نسخ كل بياناتي</button>
+    <textarea class="field" id="importBox" rows="3" placeholder="الصق هنا البيانات اللي وصلتك" style="margin-top:10px"></textarea>
+    <button class="copy" id="importBtn">دمج البيانات الملصوقة</button>
+  </details>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2, 9);
+const num = v => {
+  const s = String(v == null ? '' : v)
+    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace('٫', '.').replace(/[,،\s]/g, '');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+};
+const fmt = n => (Math.round(n * 100) / 100).toLocaleString('en-US', {maximumFractionDigits: 2});
+const N = n => `<span class="num">${fmt(n)}</span>`;
+const sgn = n => n > 0 ? 'pos' : n < 0 ? 'neg' : '';
+
+let S = { partners: ['أنا', 'خويي'], pnSet: [false, false], jobs: [], active: null };
+let draftWho = 0;
+let delArmed = false, delTimer = null;
+const colors = ['var(--p0)', 'var(--p1)'];
+
+/* ---------- config + local cache ---------- */
+const LS = {
+  get: k => { try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch(e){} },
+  del: k => { try { localStorage.removeItem(k); } catch(e){} }
+};
+let cfg = null, base = {};
+const errText = e => (e && e.message) ? e.message : String(e);
+const stamp = () => new Date().toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'});
+const normDb = u => { u = String(u || '').trim().replace(/\/+$/, ''); return /^https:\/\/[^\s\/]+$/.test(u) ? u : ''; };
+const normRoom = r => String(r || '').replace(/[^A-Za-z0-9_-]/g, '');
+function randRoom(){
+  const abc = 'abcdefghijkmnpqrstuvwxyz23456789', a = new Uint32Array(18);
+  (window.crypto || {getRandomValues: x => x.forEach((_, i) => x[i] = Math.random() * 4e9)}).getRandomValues(a);
+  return Array.from(a, n => abc[n % abc.length]).join('');
+}
+function setCfg(db, room){
+  db = normDb(db); room = normRoom(room);
+  if (!db) return 'bad-db';
+  if (room.length < 8) return 'bad-room';
+  if (!cfg || cfg.room !== room || cfg.db !== db) base = {};
+  cfg = {db, room}; LS.set('ps-cfg', JSON.stringify(cfg));
+  return '';
+}
+function loadCfg(){
+  try {
+    const h = new URLSearchParams(location.hash.slice(1));
+    if (h.get('db') && h.get('room')) {
+      setCfg(h.get('db'), h.get('room'));
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  } catch(e){}
+  if (!cfg) { try { const c = JSON.parse(LS.get('ps-cfg') || 'null'); if (c && c.db && c.room) cfg = c; } catch(e){} }
+  try {
+    const c = JSON.parse(LS.get('ps-cache') || 'null');
+    if (c && c.S) {
+      S.partners = c.S.partners || S.partners; S.pnSet = c.S.pnSet || [false, false]; S.jobs = c.S.jobs || [];
+      if (cfg && c.room === cfg.room) base = c.base || {};
+    }
+  } catch(e){}
+}
+function cacheWrite(){
+  LS.set('ps-cache', JSON.stringify({room: cfg && cfg.room, S: {partners: S.partners, pnSet: S.pnSet, jobs: S.jobs}, base}));
+}
+function setStatus(msg, warn){
+  const sn = $('#sharednote'); if (!sn) return;
+  sn.textContent = msg; sn.className = 'sharednote' + (warn ? ' warn' : '');
+}
+
+/* ---------- flat model (field-level merge) ---------- */
+const mkExp = x => ({who: +x.who === 1 ? 1 : 0, desc: String(x.desc || ''), amount: num(x.amount), ts: +x.ts || 0});
+function toFlat(st){
+  const f = {};
+  if (st.pnSet[0]) f.p0 = String(st.partners[0]);
+  if (st.pnSet[1]) f.p1 = String(st.partners[1]);
+  st.jobs.forEach(j => {
+    const b = 'jobs/' + j.id + '/';
+    f[b + 'created'] = +j.created || 0;
+    f[b + 'name'] = String(j.name || '');
+    f[b + 'sale'] = String(j.sale == null ? '' : j.sale);
+    f[b + 'split'] = j.split === 'capital' ? 'capital' : 'equal';
+    j.expenses.forEach(e => { f[b + 'expenses/' + e.id] = mkExp(e); });
+  });
+  return f;
+}
+function flatFromTree(t){
+  const f = {};
+  if (!t || typeof t !== 'object') return f;
+  if (t.p0 !== undefined) f.p0 = String(t.p0);
+  if (t.p1 !== undefined) f.p1 = String(t.p1);
+  const jobs = t.jobs || {};
+  for (const id in jobs) {
+    const j = jobs[id] || {}, b = 'jobs/' + id + '/';
+    if (j.created !== undefined) f[b + 'created'] = +j.created || 0;
+    if (j.name !== undefined) f[b + 'name'] = String(j.name);
+    if (j.sale !== undefined) f[b + 'sale'] = String(j.sale);
+    if (j.split !== undefined) f[b + 'split'] = j.split === 'capital' ? 'capital' : 'equal';
+    const ex = j.expenses || {};
+    for (const eid in ex) f[b + 'expenses/' + eid] = mkExp(ex[eid] || {});
+  }
+  return f;
+}
+function applyFlat(f){
+  if (f.p0 !== undefined) { S.partners[0] = f.p0; S.pnSet[0] = true; }
+  if (f.p1 !== undefined) { S.partners[1] = f.p1; S.pnSet[1] = true; }
+  const byId = {};
+  for (const k in f) {
+    const m = k.match(/^jobs\/([^\/]+)\/(.+)$/); if (!m) continue;
+    (byId[m[1]] = byId[m[1]] || {})[m[2]] = f[k];
+  }
+  const jobs = Object.keys(byId).map(id => {
+    const d = byId[id];
+    let j = S.jobs.find(x => x.id === id);
+    if (!j) j = {id, created: 0, name: '', sale: '', split: 'equal', expenses: []};
+    j.created = d.created !== undefined ? d.created : j.created;
+    j.name = d.name !== undefined ? d.name : '';
+    j.sale = d.sale !== undefined ? d.sale : '';
+    j.split = d.split || 'equal';
+    const ex = [];
+    for (const k in d) if (k.startsWith('expenses/')) ex.push(Object.assign({id: k.slice(9)}, d[k]));
+    ex.sort((x, y) => (x.ts - y.ts) || (x.id < y.id ? -1 : 1));
+    j.expenses.length = 0; ex.forEach(e => j.expenses.push(e));
+    return j;
+  });
+  jobs.sort((x, y) => (x.created - y.created) || (x.id < y.id ? -1 : 1));
+  S.jobs = jobs;
+}
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+/* ---------- sync (online) ---------- */
+let syncing = false, again = false, syncT;
+function scheduleSync(ms){ clearTimeout(syncT); syncT = setTimeout(() => sync(false), ms || 500); }
+function save(){ cacheWrite(); if (cfg) scheduleSync(); }
+async function api(method, body){
+  const r = await fetch(cfg.db + '/rooms/' + cfg.room + '.json', {method, body: body === undefined ? undefined : JSON.stringify(body)});
+  if (!r.ok) {
+    let t = ''; try { t = (await r.text()).slice(0, 80); } catch(e){}
+    throw new Error('HTTP ' + r.status + (t ? ' ' + t : ''));
+  }
+  return r.json();
+}
+async function sync(manual){
+  if (!cfg) { if (manual) toast('اربط قاعدة البيانات أول (تحت في الإعدادات)'); return; }
+  if (syncing) { again = true; return; }
+  syncing = true;
+  try {
+    const remote = flatFromTree(await api('GET'));
+    const local = toFlat(S);
+    const before = JSON.stringify(local);
+    const merged = {};
+    new Set([...Object.keys(local), ...Object.keys(base), ...Object.keys(remote)]).forEach(k => {
+      const v = same(local[k], base[k]) ? remote[k] : local[k];
+      if (v !== undefined) merged[k] = v;
+    });
+    applyFlat(merged);
+    const changed = JSON.stringify(toFlat(S)) !== before;
+    const diff = {}; let n = 0;
+    new Set([...Object.keys(merged), ...Object.keys(remote)]).forEach(k => {
+      if (!same(merged[k], remote[k])) { diff[k] = merged[k] === undefined ? null : merged[k]; n++; }
+    });
+    if (n) await api('PATCH', diff);
+    base = merged; cacheWrite();
+    if (changed) {
+      if (S.active !== 'total' && !jobById(S.active)) S.active = S.jobs.length ? S.jobs[0].id : null;
+      renderTabs();
+      const ae = document.activeElement;
+      const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
+      if (!typing) { renderPartners(); renderMain(); }
+      else {
+        const j = jobById(S.active);
+        if (j && $('#expList')) { renderExpenses(j); renderResults(j); }
+      }
+    }
+    setStatus('مشترك ✓ آخر تحديث ' + stamp());
+    if (manual) toast(changed ? 'تم التحديث' : 'ما فيه جديد');
+  } catch(e){
+    setStatus('تعذر الاتصال بقاعدة البيانات: ' + errText(e), true);
+    if (manual) toast('ما اشتغل التحديث');
+  } finally {
+    syncing = false;
+    if (again) { again = false; scheduleSync(100); }
+  }
+}
+
+/* ---------- calc ---------- */
+function calc(j){
+  const cap = [0, 0];
+  j.expenses.forEach(e => cap[e.who] += num(e.amount));
+  const cost = cap[0] + cap[1];
+  const sale = num(j.sale);
+  const done = sale > 0;
+  const profit = sale - cost;
+  let sh = [profit / 2, profit / 2];
+  if (j.split === 'capital' && cost > 0) sh = [profit * cap[0] / cost, profit * cap[1] / cost];
+  return {cap, cost, sale, done, profit, sh, get: [cap[0] + sh[0], cap[1] + sh[1]]};
+}
+const jobById = id => S.jobs.find(j => j.id === id);
+const jobTitle = j => j.name.trim() || 'شغلة بدون اسم';
+const pn = i => S.partners[i] || 'شريك ' + (i + 1);
+
+/* ---------- header + tabs ---------- */
+function renderPartners(){
+  $('#partners').innerHTML = [0, 1].map(i => `
+    <label class="pname"><span class="dot" style="background:${colors[i]}"></span>
+      <input value="${esc(S.partners[i])}" data-p="${i}" aria-label="اسم الشريك ${i + 1}" placeholder="الاسم"></label>`).join('');
+  document.querySelectorAll('[data-p]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      S.partners[+inp.dataset.p] = inp.value; S.pnSet[+inp.dataset.p] = true;
+      save(); renderMain();
+    });
+  });
+}
+function renderTabs(){
+  const t = $('#tabs');
+  t.innerHTML =
+    `<button class="tab" data-id="total" aria-current="${S.active === 'total'}">الإجمالي</button>` +
+    S.jobs.map(j => `<button class="tab" data-id="${j.id}" aria-current="${S.active === j.id}">${esc(jobTitle(j))}</button>`).join('') +
+    `<button class="tab add" id="addJob">+ شغلة جديدة</button>` +
+    `<button class="tab add" id="refresh">تحديث ↻</button>`;
+  t.querySelectorAll('[data-id]').forEach(b => b.onclick = () => { S.active = b.dataset.id; delArmed = false; renderTabs(); renderMain(); });
+  $('#addJob').onclick = addJob;
+  $('#refresh').onclick = () => sync(true);
+  const cur = t.querySelector('[aria-current="true"]');
+  if (cur && cur.scrollIntoView) cur.scrollIntoView({inline: 'center', block: 'nearest'});
+}
+function addJob(){
+  const j = {id: uid(), created: Date.now(), name: '', sale: '', split: 'equal', expenses: []};
+  S.jobs.push(j); S.active = j.id; save(); renderTabs(); renderMain();
+  setTimeout(() => { const el = $('#jobName'); if (el) el.focus(); }, 30);
+}
+
+/* ---------- main ---------- */
+function renderMain(){
+  if (S.active === 'total') return renderTotal();
+  const j = jobById(S.active);
+  if (!j) {
+    if (S.jobs.length) { S.active = S.jobs[0].id; return renderMain(); }
+    $('#main').innerHTML = `<div class="panel start"><p>سجّل أول شغلة، وكل واحد منكم يضيف اللي دفعه عليها.</p><button class="primary" id="first">+ شغلة جديدة</button></div>`;
+    $('#first').onclick = addJob;
+    return;
+  }
+  renderJob(j);
+}
+
+function renderJob(j){
+  $('#main').innerHTML = `
+  <div class="panel">
+    <div class="jobhead">
+      <input class="jobname" id="jobName" value="${esc(j.name)}" placeholder="اسم الشغلة" aria-label="اسم الشغلة">
+      <button class="ghost" id="delJob">حذف</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>المصاريف</h2>
+    <div id="expList"></div>
+    <div class="form">
+      <div class="seg" id="who">
+        ${[0,1].map(i => `<button data-w="${i}" style="--c:${colors[i]}" aria-pressed="${draftWho === i}">${esc(pn(i))} دفع</button>`).join('')}
+      </div>
+      <div class="row2">
+        <input class="field" id="eDesc" placeholder="وش دفع؟ (مثال: خشب)" aria-label="وصف المصروف">
+        <input class="field" id="eAmt" inputmode="decimal" placeholder="المبلغ" aria-label="المبلغ">
+      </div>
+      <button class="primary" id="addExp">إضافة المصروف</button>
+    </div>
+  </div>
+
+  <div class="panel stack">
+    <div>
+      <label class="lbl" for="sale">سعر بيع الشغلة</label>
+      <input class="field" id="sale" inputmode="decimal" placeholder="اكتبه لما تنباع" value="${esc(j.sale)}">
+    </div>
+    <div>
+      <span class="lbl">تقسيم الربح</span>
+      <div class="seg" id="split">
+        <button data-s="equal" aria-pressed="${j.split !== 'capital'}">نص بنص</button>
+        <button data-s="capital" aria-pressed="${j.split === 'capital'}">حسب رأس المال</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="results"></div>`;
+
+  $('#jobName').oninput = e => { j.name = e.target.value; save(); renderTabs(); };
+  $('#sale').oninput = e => { j.sale = e.target.value; save(); renderResults(j); };
+  $('#who').querySelectorAll('button').forEach(b => b.onclick = () => {
+    draftWho = +b.dataset.w;
+    $('#who').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', +x.dataset.w === draftWho));
+  });
+  $('#split').querySelectorAll('button').forEach(b => b.onclick = () => {
+    j.split = b.dataset.s; save();
+    $('#split').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.s === j.split));
+    renderResults(j);
+  });
+  const add = () => {
+    const amt = num($('#eAmt').value);
+    if (!amt) { toast('اكتب المبلغ'); $('#eAmt').focus(); return; }
+    j.expenses.push({id: uid(), who: draftWho, desc: $('#eDesc').value.trim(), amount: amt, ts: Date.now()});
+    $('#eDesc').value = ''; $('#eAmt').value = '';
+    save(); renderExpenses(j); renderResults(j);
+    $('#eDesc').focus();
+  };
+  $('#addExp').onclick = add;
+  ['eDesc', 'eAmt'].forEach(id => $('#' + id).addEventListener('keydown', e => { if (e.key === 'Enter') add(); }));
+  $('#delJob').onclick = () => {
+    const b = $('#delJob');
+    if (!delArmed) {
+      delArmed = true; b.textContent = 'تأكيد الحذف'; b.classList.add('danger');
+      clearTimeout(delTimer);
+      delTimer = setTimeout(() => { delArmed = false; if ($('#delJob')) { $('#delJob').textContent = 'حذف'; $('#delJob').classList.remove('danger'); } }, 3000);
+      return;
+    }
+    delArmed = false;
+    S.jobs = S.jobs.filter(x => x.id !== j.id);
+    S.active = S.jobs.length ? S.jobs[0].id : null;
+    save(); renderTabs(); renderMain();
+  };
+  renderExpenses(j); renderResults(j);
+}
+
+function renderExpenses(j){
+  const el = $('#expList');
+  if (!j.expenses.length) { el.innerHTML = `<div class="empty">ما فيه مصاريف للحين.</div>`; return; }
+  el.innerHTML = j.expenses.map(e => `
+    <div class="exp">
+      <span class="dot" style="background:${colors[e.who]}"></span>
+      <div class="t"><div class="d">${esc(e.desc || 'بدون وصف')}</div><div class="w">${esc(pn(e.who))}</div></div>
+      <div class="a">${N(num(e.amount))}</div>
+      <button class="x" data-del="${e.id}" aria-label="حذف المصروف">×</button>
+    </div>`).join('');
+  el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    j.expenses = j.expenses.filter(x => x.id !== b.dataset.del);
+    save(); renderExpenses(j); renderResults(j);
+  });
+}
+
+function cardsHTML(cap, sh, get, done){
+  return `<div class="cards">${[0,1].map(i => `
+    <div class="card" style="--c:${colors[i]}">
+      <h3>${esc(pn(i))}</h3>
+      <div class="r"><span>رأس ماله</span><span>${N(cap[i])}</span></div>
+      ${done ? `<div class="r"><span>ربحه</span><span class="${sgn(sh[i])}">${N(sh[i])}</span></div>
+      <div class="get"><span>يستلم</span><b>${N(get[i])}</b></div>` : `<div class="get"><span>دفع</span><b>${N(cap[i])}</b></div>`}
+    </div>`).join('')}</div>`;
+}
+
+function renderResults(j){
+  const c = calc(j), el = $('#results');
+  if (!c.cost) { el.innerHTML = `<h2>النتيجة</h2><div class="empty">أضف المصاريف وبتطلع الحسبة هنا.</div>`; return; }
+  el.innerHTML = `
+    <h2>النتيجة</h2>
+    <div class="sum">
+      <div><small>التكلفة</small><b>${N(c.cost)}</b></div>
+      <div><small>سعر البيع</small><b>${c.done ? N(c.sale) : '—'}</b></div>
+      <div><small>${c.profit < 0 && c.done ? 'الخسارة' : 'الربح'}</small><b class="${c.done ? sgn(c.profit) : ''}">${c.done ? N(c.profit) : '—'}</b></div>
+    </div>
+    ${cardsHTML(c.cap, c.sh, c.get, c.done)}
+    ${c.done ? '' : '<p class="note">اكتب سعر البيع عشان يطلع الربح ومبلغ كل واحد.</p>'}
+    <button class="copy" id="copyJob">نسخ الملخص</button>`;
+  $('#copyJob').onclick = () => copy(jobText(j));
+}
+
+/* ---------- totals ---------- */
+function renderTotal(){
+  if (!S.jobs.length) {
+    $('#main').innerHTML = `<div class="panel start"><p>ما فيه شغلات للحين.</p><button class="primary" id="first">+ شغلة جديدة</button></div>`;
+    $('#first').onclick = addJob; return;
+  }
+  const T = {cost:0, sale:0, profit:0, cap:[0,0], sh:[0,0], get:[0,0]};
+  const pend = [0,0]; let pendCount = 0;
+  S.jobs.forEach(j => {
+    const c = calc(j);
+    if (c.done) {
+      T.cost += c.cost; T.sale += c.sale; T.profit += c.profit;
+      [0,1].forEach(i => { T.cap[i] += c.cap[i]; T.sh[i] += c.sh[i]; T.get[i] += c.get[i]; });
+    } else if (c.cost) { pendCount++; [0,1].forEach(i => pend[i] += c.cap[i]); }
+  });
+  const doneCount = S.jobs.filter(j => calc(j).done).length;
+  $('#main').innerHTML = `
+    <div class="panel">
+      <h2>إجمالي الشغلات المباعة (${doneCount})</h2>
+      <div class="sum">
+        <div><small>التكلفة</small><b>${N(T.cost)}</b></div>
+        <div><small>المبيعات</small><b>${N(T.sale)}</b></div>
+        <div><small>الربح</small><b class="${sgn(T.profit)}">${N(T.profit)}</b></div>
+      </div>
+      ${cardsHTML(T.cap, T.sh, T.get, true)}
+      ${pendCount ? `<p class="note">${pendCount} شغلة ما انباعت للحين، وفيها فلوس واقفة: ${esc(pn(0))} <b class="num">${fmt(pend[0])}</b> — ${esc(pn(1))} <b class="num">${fmt(pend[1])}</b></p>` : ''}
+      <button class="copy" id="copyAll">نسخ الملخص</button>
+    </div>
+    <div class="panel">
+      <h2>الشغلات</h2>
+      ${S.jobs.map(j => { const c = calc(j); return `
+        <button class="jl" data-open="${j.id}">
+          <div class="n">${esc(jobTitle(j))}<div class="s">تكلفة ${fmt(c.cost)}${c.done ? ' — بيع ' + fmt(c.sale) : ' — ما انباعت'}</div></div>
+          ${c.done ? `<b class="${sgn(c.profit)}">${N(c.profit)}</b>` : ''}
+        </button>`; }).join('')}
+    </div>`;
+  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { S.active = b.dataset.open; renderTabs(); renderMain(); });
+  $('#copyAll').onclick = () => copy(totalText(T, pend, pendCount));
+}
+
+/* ---------- share text ---------- */
+function jobText(j){
+  const c = calc(j);
+  let t = `${jobTitle(j)}\n`;
+  j.expenses.forEach(e => t += `- ${e.desc || 'بدون وصف'} (${pn(e.who)}): ${fmt(num(e.amount))}\n`);
+  t += `\nالتكلفة: ${fmt(c.cost)}\n`;
+  if (!c.done) return t + `${pn(0)} دفع ${fmt(c.cap[0])}\n${pn(1)} دفع ${fmt(c.cap[1])}`;
+  t += `سعر البيع: ${fmt(c.sale)}\nالربح: ${fmt(c.profit)}\n\n`;
+  [0,1].forEach(i => t += `${pn(i)}: رأس المال ${fmt(c.cap[i])} + ربح ${fmt(c.sh[i])} = ${fmt(c.get[i])}\n`);
+  return t.trim();
+}
+function totalText(T, pend, pc){
+  let t = `الإجمالي\nالتكلفة: ${fmt(T.cost)}\nالمبيعات: ${fmt(T.sale)}\nالربح: ${fmt(T.profit)}\n\n`;
+  [0,1].forEach(i => t += `${pn(i)}: رأس المال ${fmt(T.cap[i])} + ربح ${fmt(T.sh[i])} = ${fmt(T.get[i])}\n`);
+  if (pc) t += `\nشغلات ما انباعت: ${pc} (${pn(0)} ${fmt(pend[0])} — ${pn(1)} ${fmt(pend[1])})`;
+  return t.trim();
+}
+function copy(text, msg){
+  const done = () => toast(msg || 'اننسخ الملخص');
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch(e){ toast('ما قدرت أنسخ'); }
+    ta.remove();
+  };
+  try { navigator.clipboard.writeText(text).then(done, fallback); } catch(e){ fallback(); }
+}
+let toastT;
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ---------- manual share ---------- */
+const enc = o => 'PSH1:' + btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+const dec = t => JSON.parse(decodeURIComponent(escape(atob(t.trim().replace(/^PSH1:/, '')))));
+function importData(text){
+  let d;
+  try { d = dec(text); if (!d || !Array.isArray(d.jobs)) throw 0; } catch(e){ toast('البيانات غير صحيحة'); return false; }
+  let added = 0, merged = 0;
+  d.jobs.forEach(rj => {
+    const l = S.jobs.find(j => j.id === rj.id);
+    if (!l) { S.jobs.push(rj); added++; return; }
+    (rj.expenses || []).forEach(e => { if (!l.expenses.some(x => x.id === e.id)) { l.expenses.push(e); merged++; } });
+    if (!l.name && rj.name) l.name = rj.name;
+    if (!num(l.sale) && num(rj.sale)) l.sale = rj.sale;
+  });
+  S.jobs.sort((x, y) => (x.created || 0) - (y.created || 0));
+  if (!S.active && S.jobs.length) S.active = S.jobs[0].id;
+  save(); renderPartners(); renderTabs(); renderMain();
+  toast(`تم الدمج: ${added} شغلة جديدة، ${merged} مصروف جديد`);
+  return true;
+}
+$('#exportBtn').onclick = () => copy(enc({partners: S.partners, jobs: S.jobs}), 'اننسخت البيانات، ارسلها لخويك');
+$('#importBtn').onclick = () => { const b = $('#importBox'); if (b.value.trim() && importData(b.value)) b.value = ''; };
+
+/* ---------- settings ---------- */
+function renderSettings(){
+  const el = $('#cfgBox');
+  if (!cfg) {
+    el.innerHTML = `
+      <p class="note">اربط التطبيق بقاعدة بيانات عشان تتحدث الأرقام بينك وبين خويك.</p>
+      <input class="field" id="cfgDb" dir="ltr" placeholder="https://اسم-مشروعك-default-rtdb.firebaseio.com" style="margin-top:10px" aria-label="رابط قاعدة البيانات">
+      <input class="field" id="cfgRoom" dir="ltr" value="${randRoom()}" style="margin-top:8px" aria-label="رمز المجموعة">
+      <p class="note">رمز المجموعة هو السر اللي يحمي بياناتكم، لا تعطيه لأحد غير خويك.</p>
+      <button class="copy" id="cfgGo">ربط وبدء المزامنة</button>`;
+    $('#cfgGo').onclick = () => {
+      const err = setCfg($('#cfgDb').value, $('#cfgRoom').value);
+      if (err === 'bad-db') return toast('الرابط غير صحيح، لازم يبدأ بـ https://');
+      if (err === 'bad-room') return toast('رمز المجموعة لازم 8 حروف أو أرقام على الأقل');
+      renderSettings(); save(); sync(true);
+    };
+  } else {
+    el.innerHTML = `
+      <p class="note">مربوط بقاعدة البيانات ✓ أي واحد يفتح رابط الدعوة يشوف نفس البيانات.</p>
+      <button class="copy" id="inviteBtn">نسخ رابط الدعوة لخويك</button>
+      <button class="copy" id="cfgReset">فصل الربط</button>`;
+    $('#inviteBtn').onclick = () => copy(location.href.split('#')[0] + '#db=' + encodeURIComponent(cfg.db) + '&room=' + cfg.room, 'اننسخ رابط الدعوة، ارسله لخويك');
+    $('#cfgReset').onclick = () => {
+      cfg = null; base = {}; LS.del('ps-cfg'); renderSettings();
+      setStatus('انفصل الربط. بياناتك محفوظة في هذا الجهاز بس.', true);
+    };
+  }
+}
+
+/* ---------- init ---------- */
+loadCfg();
+if (!S.active && S.jobs.length) S.active = S.jobs[0].id;
+renderSettings(); renderPartners(); renderTabs(); renderMain();
+if (cfg) { setStatus('جاري الاتصال…'); sync(false); }
+else { setStatus('غير مربوط بقاعدة بيانات: بياناتك محفوظة في هذا الجهاز بس. افتح "الإعدادات والمشاركة" تحت للربط.', true); $('#manual').open = true; }
+setInterval(() => { if (cfg && !document.hidden) sync(false); }, 30 * 60 * 1000);  // كل نص ساعة، وبعد كل تعديل، وعند فتح التطبيق
+document.addEventListener('visibilitychange', () => { if (!document.hidden && cfg) sync(false); });
+</script>
+</body>
+</html>
