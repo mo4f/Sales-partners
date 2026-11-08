@@ -100,6 +100,15 @@ input,textarea{font-family:inherit;font-size:16px;color:var(--ink)}
 .jl .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .jl .s{font-size:13px;color:var(--muted)}
 
+.sec{font-size:15px;font-weight:700;color:var(--muted);margin:18px 2px 10px}
+.jobcard{display:block;width:100%;text-align:start;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px;margin-bottom:10px}
+.jobcard:active{opacity:.85}
+.jc-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:17px}
+.badge{font-size:12px;border-radius:999px;padding:2px 10px;border:1px solid var(--line);color:var(--muted);flex:none}
+.badge.ok{color:var(--good);border-color:var(--good)}
+.jc-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px;text-align:center}
+.jc-row small{display:block;color:var(--muted);font-size:12px}
+.jc-paid{display:flex;justify-content:space-between;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:14px;color:var(--muted)}
 .start{text-align:center;padding:30px 10px}
 .start p{color:var(--muted);margin:0 0 16px}
 
@@ -495,43 +504,62 @@ function renderResults(j){
 }
 
 /* ---------- totals ---------- */
+function totals(){
+  const T = {costAll:0, sale:0, profit:0, paidAll:[0,0], profitSh:[0,0], getSold:[0,0], stuck:[0,0], sold:0, unsold:0};
+  S.jobs.forEach(j => {
+    const c = calc(j);
+    T.costAll += c.cost;
+    [0,1].forEach(i => T.paidAll[i] += c.cap[i]);
+    if (c.done) {
+      T.sold++; T.sale += c.sale; T.profit += c.profit;
+      [0,1].forEach(i => { T.profitSh[i] += c.sh[i]; T.getSold[i] += c.get[i]; });
+    } else if (c.cost) {
+      T.unsold++; [0,1].forEach(i => T.stuck[i] += c.cap[i]);
+    }
+  });
+  return T;
+}
 function renderTotal(){
   if (!S.jobs.length) {
     $('#main').innerHTML = `<div class="panel start"><p>ما فيه شغلات للحين.</p><button class="primary" id="first">+ شغلة جديدة</button></div>`;
     $('#first').onclick = addJob; return;
   }
-  const T = {cost:0, sale:0, profit:0, cap:[0,0], sh:[0,0], get:[0,0]};
-  const pend = [0,0]; let pendCount = 0;
-  S.jobs.forEach(j => {
-    const c = calc(j);
-    if (c.done) {
-      T.cost += c.cost; T.sale += c.sale; T.profit += c.profit;
-      [0,1].forEach(i => { T.cap[i] += c.cap[i]; T.sh[i] += c.sh[i]; T.get[i] += c.get[i]; });
-    } else if (c.cost) { pendCount++; [0,1].forEach(i => pend[i] += c.cap[i]); }
-  });
-  const doneCount = S.jobs.filter(j => calc(j).done).length;
+  const T = totals();
   $('#main').innerHTML = `
     <div class="panel">
-      <h2>إجمالي الشغلات المباعة (${doneCount})</h2>
+      <h2>كل الشغلات (${S.jobs.length})</h2>
       <div class="sum">
-        <div><small>التكلفة</small><b>${N(T.cost)}</b></div>
+        <div><small>إجمالي التكلفة</small><b>${N(T.costAll)}</b></div>
         <div><small>المبيعات</small><b>${N(T.sale)}</b></div>
         <div><small>الربح</small><b class="${sgn(T.profit)}">${N(T.profit)}</b></div>
       </div>
-      ${cardsHTML(T.cap, T.sh, T.get, true)}
-      ${pendCount ? `<p class="note">${pendCount} شغلة ما انباعت للحين، وفيها فلوس واقفة: ${esc(pn(0))} <b class="num">${fmt(pend[0])}</b> — ${esc(pn(1))} <b class="num">${fmt(pend[1])}</b></p>` : ''}
+      <p class="note" style="margin:0 0 12px">${T.sold} مباعة، ${T.unsold} ما انباعت للحين. المبيعات والربح من الشغلات المباعة بس.</p>
+      <div class="cards">${[0,1].map(i => `
+        <div class="card" style="--c:${colors[i]}">
+          <h3>${esc(pn(i))}</h3>
+          <div class="r"><span>دفع (الكل)</span><span>${N(T.paidAll[i])}</span></div>
+          <div class="r"><span>ربحه</span><span class="${sgn(T.profitSh[i])}">${N(T.profitSh[i])}</span></div>
+          ${T.stuck[i] ? `<div class="r"><span>واقف بغير المباع</span><span>${N(T.stuck[i])}</span></div>` : ''}
+          <div class="get"><span>يستلم</span><b>${N(T.getSold[i])}</b></div>
+        </div>`).join('')}</div>
       <button class="copy" id="copyAll">نسخ الملخص</button>
     </div>
-    <div class="panel">
-      <h2>الشغلات</h2>
-      ${S.jobs.map(j => { const c = calc(j); return `
-        <button class="jl" data-open="${j.id}">
-          <div class="n">${esc(jobTitle(j))}<div class="s">تكلفة ${fmt(c.cost)}${c.done ? ' — بيع ' + fmt(c.sale) : ' — ما انباعت'}</div></div>
-          ${c.done ? `<b class="${sgn(c.profit)}">${N(c.profit)}</b>` : ''}
-        </button>`; }).join('')}
-    </div>`;
-  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { S.active = b.dataset.open; renderTabs(); renderMain(); });
-  $('#copyAll').onclick = () => copy(totalText(T, pend, pendCount));
+
+    <h2 class="sec">الشغلات</h2>
+    ${S.jobs.map(j => { const c = calc(j); return `
+      <button class="jobcard" data-open="${j.id}">
+        <div class="jc-head"><b>${esc(jobTitle(j))}</b><span class="badge ${c.done ? 'ok' : ''}">${c.done ? 'مباعة' : 'ما انباعت'}</span></div>
+        <div class="jc-row">
+          <div><small>التكلفة</small><b>${N(c.cost)}</b></div>
+          <div><small>البيع</small><b>${c.done ? N(c.sale) : '—'}</b></div>
+          <div><small>${c.done && c.profit < 0 ? 'الخسارة' : 'الربح'}</small><b class="${c.done ? sgn(c.profit) : ''}">${c.done ? N(c.profit) : '—'}</b></div>
+        </div>
+        <div class="jc-paid">
+          ${[0,1].map(i => `<span><span class="dot" style="background:${colors[i]};display:inline-block;margin-inline-end:6px"></span>${esc(pn(i))} ${N(c.cap[i])}</span>`).join('')}
+        </div>
+      </button>`; }).join('')}`;
+  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { S.active = b.dataset.open; renderTabs(); renderMain(); window.scrollTo(0, 0); });
+  $('#copyAll').onclick = () => copy(totalText(T));
 }
 
 /* ---------- share text ---------- */
@@ -545,10 +573,15 @@ function jobText(j){
   [0,1].forEach(i => t += `${pn(i)}: رأس المال ${fmt(c.cap[i])} + ربح ${fmt(c.sh[i])} = ${fmt(c.get[i])}\n`);
   return t.trim();
 }
-function totalText(T, pend, pc){
-  let t = `الإجمالي\nالتكلفة: ${fmt(T.cost)}\nالمبيعات: ${fmt(T.sale)}\nالربح: ${fmt(T.profit)}\n\n`;
-  [0,1].forEach(i => t += `${pn(i)}: رأس المال ${fmt(T.cap[i])} + ربح ${fmt(T.sh[i])} = ${fmt(T.get[i])}\n`);
-  if (pc) t += `\nشغلات ما انباعت: ${pc} (${pn(0)} ${fmt(pend[0])} — ${pn(1)} ${fmt(pend[1])})`;
+function totalText(T){
+  let t = `الإجمالي (${S.jobs.length} شغلة: ${T.sold} مباعة، ${T.unsold} ما انباعت)\nإجمالي التكلفة: ${fmt(T.costAll)}\nالمبيعات: ${fmt(T.sale)}\nالربح: ${fmt(T.profit)}\n\n`;
+  [0,1].forEach(i => {
+    t += `${pn(i)}: دفع ${fmt(T.paidAll[i])} — ربح ${fmt(T.profitSh[i])} — يستلم ${fmt(T.getSold[i])}`;
+    if (T.stuck[i]) t += ` — واقف ${fmt(T.stuck[i])}`;
+    t += '\n';
+  });
+  t += '\nالشغلات:\n';
+  S.jobs.forEach(j => { const c = calc(j); t += `- ${jobTitle(j)}: تكلفة ${fmt(c.cost)}` + (c.done ? `، بيع ${fmt(c.sale)}، ربح ${fmt(c.profit)}` : '، ما انباعت') + '\n'; });
   return t.trim();
 }
 function copy(text, msg){
